@@ -1,0 +1,73 @@
+# ─────────────────────────────────────────────────────────────────────────────
+# config.yaml  —  Central configuration for the Chest X-Ray ViT project
+# Optimized for RTX 3050 Laptop GPU (4 GB VRAM)
+# ─────────────────────────────────────────────────────────────────────────────
+
+# ── Paths ─────────────────────────────────────────────────────────────────────
+paths:
+  data_root:       "./data/raw"               # Root where Kaggle data is extracted
+  images_dir:      "./data/raw/images"        # Folder containing all .png X-rays
+  labels_csv:      "./data/raw/Data_Entry_2017.csv"
+  train_list:      "./data/raw/train_val_list.txt"
+  test_list:       "./data/raw/test_list.txt"
+  checkpoints_dir: "./checkpoints"
+  results_dir:     "./results"
+  mlflow_dir:      "./experiments/mlflow"
+
+# ── Dataset ───────────────────────────────────────────────────────────────────
+dataset:
+  image_size: 224                 # ViT-Base-16 expects 224×224
+  # Use a fraction of training data for quick iteration on RTX 3050
+  # Set to 1.0 for full training, 0.2 for fast smoke-test
+  train_fraction: 1.0
+  val_split: 0.1                  # 10% of train_val_list used as validation
+  num_workers: 0                  # 0 = safe on Windows; increase if Linux
+  pin_memory: true
+
+# ── Model ─────────────────────────────────────────────────────────────────────
+model:
+  name: "google/vit-base-patch16-224-in21k"   # Pre-trained on ImageNet-21k
+  num_classes: 14
+  dropout: 0.1
+  gradient_checkpointing: true    # Saves ~30% VRAM on RTX 3050
+
+# ── Training ──────────────────────────────────────────────────────────────────
+training:
+  num_epochs: 5                   # Conservative for RTX 3050; increase if time allows
+  batch_size: 8                   # Fits in 4 GB VRAM with grad-checkpointing
+  gradient_accumulation_steps: 4  # Effective batch = 32
+  learning_rate: 2.0e-5           # Typical fine-tune LR for ViT
+  weight_decay: 0.01
+  warmup_ratio: 0.05              # 5% of total steps for LR warmup
+  max_grad_norm: 1.0              # Gradient clipping
+  mixed_precision: true           # fp16 — mandatory for 4 GB VRAM
+  save_best_only: true
+  log_interval: 50                # Log every N optimizer steps
+
+# ── Diseases (NIH ChestX-ray14 label set) ─────────────────────────────────────
+diseases:
+  - "Atelectasis"
+  - "Cardiomegaly"
+  - "Effusion"
+  - "Infiltration"
+  - "Mass"
+  - "Nodule"
+  - "Pneumonia"
+  - "Pneumothorax"
+  - "Consolidation"
+  - "Edema"
+  - "Emphysema"
+  - "Fibrosis"
+  - "Pleural_Thickening"
+  - "Hernia"
+
+# ── MLflow ────────────────────────────────────────────────────────────────────
+mlflow:
+  experiment_name: "chest-xray-vit"
+  run_name: "vit-base16-clahe-v1"
+
+# ── Inference / Demo ──────────────────────────────────────────────────────────
+inference:
+  threshold: 0.5                  # Sigmoid threshold for positive prediction
+  gradio_port: 7860
+  gradio_share: false             # Set true to get public URL (ngrok)
