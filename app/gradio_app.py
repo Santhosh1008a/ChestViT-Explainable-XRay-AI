@@ -26,6 +26,8 @@ import os
 import sys
 import time
 from pathlib import Path
+from huggingface_hub import hf_hub_download
+import torch
 
 # Fix Windows console encoding (cp1252 can't handle emoji/Unicode)
 if sys.platform == "win32":
@@ -56,7 +58,7 @@ from data.dataset import DISEASE_LABELS
 # ── Config ────────────────────────────────────────────────────────────────────
 cfg = load_config()
 DEVICE = torch.device("cuda" if torch.cuda.is_available() else "cpu")
-DEMO_MODE = os.getenv("DEMO_MODE", "0") == "1"  # Use random weights if no checkpoint
+
 
 
 # ── CSS Styling ───────────────────────────────────────────────────────────────
@@ -173,22 +175,20 @@ FOOTER_HTML = """
 # ── Model Loading ─────────────────────────────────────────────────────────────
 
 def load_model() -> ChestViT:
-    """Load the trained model or use random weights in DEMO_MODE."""
-    ckpt_path = Path(cfg.paths.checkpoints_dir) / "best_model.pt"
+    """Load trained model from Hugging Face Model Hub."""
 
-    if DEMO_MODE or not ckpt_path.exists():
-        print(f"  ⚠ DEMO_MODE: Loading ViT with UNTRAINED weights.")
-        print(f"    (Predictions will be random — for UI demonstration only)")
-        model = ChestViT(
-            num_classes=cfg.model.num_classes,
-            pretrained_name=cfg.model.name,
-            gradient_checkpointing=False,
-        )
-    else:
-        model = load_checkpoint(ckpt_path, DEVICE)
+    ckpt_path = hf_hub_download(
+        repo_id="sandy45/ChestViT-ViTBase-NIH14",
+        filename="best_model.pt"
+    )
+
+    model = load_checkpoint(ckpt_path, DEVICE)
 
     model.to(DEVICE)
     model.eval()
+
+    print("🔥 Loaded trained model from Hugging Face Hub")
+
     return model
 
 
@@ -422,7 +422,7 @@ def analyze_xray(
         status = (
             f"✅ Analysis complete in {elapsed:.2f}s | "
             f"Device: {str(DEVICE).upper()} | "
-            f"{'Demo mode (untrained)' if DEMO_MODE else 'Trained model'}"
+            f"{"🔥 Trained ChestViT • AUROC 0.789"}"
         )
 
         return heatmap_fig, prob_fig, diag_text, status
