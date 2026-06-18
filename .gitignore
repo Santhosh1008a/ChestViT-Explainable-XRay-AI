@@ -1,51 +1,20 @@
-# ── Dataset (large, do not commit) ───────────────────────────────────────────
-data/raw/
-data/raw/**
-
-# ── Model checkpoints ─────────────────────────────────────────────────────────
+# Model checkpoints
 checkpoints/
 *.pt
-*.pth
-*.ckpt
 
-# ── MLflow tracking ────────────────────────────────────────────────────────────
+# MLflow
 experiments/
+mlruns/
 
-# ── Results ───────────────────────────────────────────────────────────────────
+# Results
 results/
 
-# ── Python ────────────────────────────────────────────────────────────────────
+# Python cache
 __pycache__/
-*.py[cod]
-*.egg-info/
-.eggs/
-dist/
-build/
-*.egg
-.Python
-venv/
-env/
-.env
-*.venv
+*.pyc
 
-# ── Jupyter ────────────────────────────────────────────────────────────────────
+# Colab
 .ipynb_checkpoints/
-*.ipynb_checkpoints
 
-# ── IDEs ──────────────────────────────────────────────────────────────────────
-.vscode/
-.idea/
-*.code-workspace
-.vs/
-
-# ── OS ────────────────────────────────────────────────────────────────────────
-.DS_Store
-Thumbs.db
-desktop.ini
-
-# ── Kaggle credentials (NEVER commit) ─────────────────────────────────────────
-kaggle.json
-.kaggle/
-
-# ── HuggingFace cache ─────────────────────────────────────────────────────────
-.cache/huggingface/
+# Temporary files
+untitled/

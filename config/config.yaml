@@ -33,9 +33,9 @@ model:
 
 # ── Training ──────────────────────────────────────────────────────────────────
 training:
-  num_epochs: 5                   # Conservative for RTX 3050; increase if time allows
-  batch_size: 8                   # Fits in 4 GB VRAM with grad-checkpointing
-  gradient_accumulation_steps: 4  # Effective batch = 32
+  num_epochs: 10                   # Conservative for RTX 3050; increase if time allows
+  batch_size: 16                   # Fits in 4 GB VRAM with grad-checkpointing
+  gradient_accumulation_steps: 2  # Effective batch = 32
   learning_rate: 2.0e-5           # Typical fine-tune LR for ViT
   weight_decay: 0.01
   warmup_ratio: 0.05              # 5% of total steps for LR warmup

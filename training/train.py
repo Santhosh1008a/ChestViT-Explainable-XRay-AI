@@ -246,7 +246,19 @@ def train(config_path: Optional[str] = None) -> None:
         lr           = cfg.training.learning_rate,
         weight_decay = cfg.training.weight_decay,
     )
+    
+    resume_path = "checkpoints/best_model.pt"
 
+    checkpoint = torch.load(resume_path, map_location=device)
+
+    model.load_state_dict(checkpoint["model_state_dict"])
+    optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+
+    start_epoch = checkpoint["epoch"] + 1
+    best_val_auc = checkpoint["val_auc"]
+
+    print(f"\nResuming from epoch {start_epoch}")
+    print(f"Previous best AUC: {best_val_auc:.4f}\n")
     total_samples_per_epoch = cfg.dataset.train_take_limit if getattr(cfg.dataset, 'train_take_limit', None) else 89696 # BahaaEldin0 train size
     batches_per_epoch = total_samples_per_epoch // cfg.training.batch_size
     total_steps  = batches_per_epoch * cfg.training.num_epochs // cfg.training.gradient_accumulation_steps
@@ -275,7 +287,7 @@ def train(config_path: Optional[str] = None) -> None:
     print(f"  Effective batch size: {cfg.training.batch_size * cfg.training.gradient_accumulation_steps}")
     print(f"{'='*60}\n")
 
-    best_val_auc   = -float("inf")
+    best_val_auc = checkpoint["val_auc"]
     best_ckpt_path = checkpoints_dir / "best_model.pt"
 
     with mlflow.start_run(run_name=cfg.mlflow.run_name) as run:
@@ -295,7 +307,7 @@ def train(config_path: Optional[str] = None) -> None:
             "warmup_ratio":             cfg.training.warmup_ratio,
         })
 
-        for epoch in range(1, cfg.training.num_epochs + 1):
+        for epoch in range(start_epoch, cfg.training.num_epochs + 1):
             epoch_start = time.time()
 
             # Train
