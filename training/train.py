@@ -37,7 +37,7 @@ sys.path.insert(0, str(Path(__file__).parent.parent))
 
 from config_loader import load_config
 from data.dataset import build_dataloaders, DISEASE_LABELS
-from models.vit_model import ChestViT, save_checkpoint
+from models.vit_model import ChestViT, save_checkpoint, load_full_checkpoint
 from training.losses import build_loss
 from training.evaluate import run_inference, compute_metrics, print_results_table
 
@@ -192,7 +192,7 @@ def validate(
     return result
 
 
-def train(config_path: Optional[str] = None) -> None:
+def train(config_path: Optional[str] = None, resume_from: Optional[str] = None) -> None:
     """
     Main training entry point.
     Reads config from config/config.yaml (or custom path).
@@ -277,6 +277,15 @@ def train(config_path: Optional[str] = None) -> None:
 
     best_val_auc   = -float("inf")
     best_ckpt_path = checkpoints_dir / "best_model.pt"
+    start_epoch    = 1
+
+    if resume_from:
+        start_epoch, best_val_auc = load_full_checkpoint(
+            checkpoint_path=resume_from,
+            model=model,
+            optimizer=optimizer,
+            device=device,
+        )
 
     with mlflow.start_run(run_name=cfg.mlflow.run_name) as run:
         # Log all hyperparameters
@@ -295,7 +304,7 @@ def train(config_path: Optional[str] = None) -> None:
             "warmup_ratio":             cfg.training.warmup_ratio,
         })
 
-        for epoch in range(1, cfg.training.num_epochs + 1):
+        for epoch in range(start_epoch, cfg.training.num_epochs + 1):
             epoch_start = time.time()
 
             # Train
@@ -322,6 +331,31 @@ def train(config_path: Optional[str] = None) -> None:
                 device=device,
                 disease_names=DISEASE_LABELS,
             )
+            # After full validation on last epoch, generate artifacts
+            if epoch == cfg.training.num_epochs:
+                from training.evaluate import evaluate_model
+
+                # Small hack to reload the subset dataloader since it's consumed
+                # (Huggingface streams cannot be reset easily in all scenarios without recreating)
+                _, val_loader2, _, _ = build_dataloaders(
+                    image_size      = cfg.dataset.image_size,
+                    batch_size      = cfg.training.batch_size,
+                    num_workers     = cfg.dataset.num_workers,
+                    pin_memory      = cfg.dataset.pin_memory and device.type == "cuda",
+                    val_split       = cfg.dataset.val_split,
+                    train_fraction  = cfg.dataset.train_fraction,
+                    train_take_limit= getattr(cfg.dataset, 'train_take_limit', 20000),
+                    val_take_limit  = getattr(cfg.dataset, 'val_take_limit', 2000),
+                )
+
+                evaluate_model(
+                    model=model,
+                    dataloader=val_loader2,
+                    device=device,
+                    disease_names=DISEASE_LABELS,
+                    results_dir=results_dir,
+                    split="val"
+                )
 
             epoch_time = time.time() - epoch_start
 
@@ -378,5 +412,7 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Train ChestViT on NIH ChestX-ray14")
     parser.add_argument("--config", type=str, default=None,
                         help="Path to config.yaml (default: config/config.yaml)")
+    parser.add_argument("--resume", type=str, default=None,
+                        help="Path to checkpoint to resume training from")
     args = parser.parse_args()
-    train(args.config)
+    train(args.config, resume_from=args.resume)

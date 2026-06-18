@@ -294,6 +294,52 @@ def plot_roc_curves(
     return fig
 
 
+
+from sklearn.metrics import multilabel_confusion_matrix
+import seaborn as sns
+
+def plot_confusion_matrices(
+    probs: np.ndarray,
+    labels: np.ndarray,
+    disease_names: List[str],
+    threshold: float = 0.5,
+    save_path: Optional[str | Path] = None,
+) -> plt.Figure:
+    preds = (probs >= threshold).astype(int)
+    cms = multilabel_confusion_matrix(labels, preds)
+
+    n = len(disease_names)
+    cols = 4
+    rows = (n + cols - 1) // cols
+
+    fig, axes = plt.subplots(rows, cols, figsize=(16, 12))
+    fig.patch.set_facecolor("#0f172a")
+    fig.suptitle(f"Confusion Matrices (Threshold={threshold})", color="white", fontsize=15, fontweight="bold")
+
+    axes_flat = axes.flatten()
+
+    for i, (ax, disease) in enumerate(zip(axes_flat, disease_names)):
+        cm = cms[i]
+        sns.heatmap(cm, annot=True, fmt='d', cmap='Blues', ax=ax, cbar=False,
+                    xticklabels=['Neg', 'Pos'], yticklabels=['Neg', 'Pos'])
+
+        ax.set_title(disease, color="white", fontsize=10, fontweight="bold")
+        ax.set_ylabel('True', color="white")
+        ax.set_xlabel('Predicted', color="white")
+        ax.tick_params(colors="white")
+
+    for ax in axes_flat[n:]:
+        ax.set_visible(False)
+
+    plt.tight_layout(rect=[0, 0, 1, 0.95])
+
+    if save_path:
+        plt.savefig(save_path, dpi=150, bbox_inches="tight", facecolor=fig.get_facecolor())
+        print(f"  Confusion matrices saved → {save_path}")
+
+    return fig
+
+
 def evaluate_model(
     model: nn.Module,
     dataloader: DataLoader,
@@ -331,6 +377,12 @@ def evaluate_model(
         plot_roc_curves(
             probs, labels, disease_names,
             save_path=results_dir / f"roc_curves_{split}.png",
+        )
+
+        # Save Confusion Matrices
+        plot_confusion_matrices(
+            probs, labels, disease_names,
+            save_path=results_dir / f"confusion_matrices_{split}.png",
         )
 
         # Save metrics as CSV

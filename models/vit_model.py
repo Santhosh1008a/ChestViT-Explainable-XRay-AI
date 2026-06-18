@@ -175,3 +175,23 @@ def save_checkpoint(
         "optimizer_state_dict": optimizer.state_dict(),
     }, save_path)
     print(f"  Checkpoint saved → {save_path} (val_auc={val_auc:.4f})")
+
+def load_full_checkpoint(
+    checkpoint_path: str | Path,
+    model: ChestViT,
+    optimizer: torch.optim.Optimizer = None,
+    device: torch.device = torch.device("cpu"),
+):
+    checkpoint_path = Path(checkpoint_path)
+    print(f"  Loading full checkpoint: {checkpoint_path}")
+    checkpoint = torch.load(checkpoint_path, map_location=device)
+
+    model.load_state_dict(checkpoint["model_state_dict"])
+    if optimizer is not None and "optimizer_state_dict" in checkpoint:
+        optimizer.load_state_dict(checkpoint["optimizer_state_dict"])
+
+    start_epoch = checkpoint.get("epoch", 0) + 1
+    best_val_auc = checkpoint.get("val_auc", -float("inf"))
+
+    print(f"  Resuming from epoch {start_epoch-1} (val_auc={best_val_auc:.4f})")
+    return start_epoch, best_val_auc
