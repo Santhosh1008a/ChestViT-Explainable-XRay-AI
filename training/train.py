@@ -89,10 +89,10 @@ def train_one_epoch(
     num_batches = 0
     optimizer.zero_grad()
 
-    pbar = tqdm(enumerate(dataloader), total=len(dataloader),
+    pbar = tqdm(enumerate(dataloader),
                 desc=f"Epoch {epoch:02d} [train]", leave=True)
 
-    global_step = (epoch - 1) * len(dataloader)
+    global_step = (epoch - 1) * 1000 # Dummy value since we cannot easily get len(dataloader) for stream
 
     for step, (images, labels, _) in pbar:
         images = images.to(device, non_blocking=True)
@@ -109,7 +109,7 @@ def train_one_epoch(
         scaler.scale(loss).backward()
 
         # ── Gradient accumulation step ────────────────────────────────────────
-        if (step + 1) % gradient_accumulation_steps == 0 or (step + 1) == len(dataloader):
+        if (step + 1) % gradient_accumulation_steps == 0:
             # Unscale for gradient clipping
             scaler.unscale_(optimizer)
             torch.nn.utils.clip_grad_norm_(model.parameters(), max_grad_norm)
@@ -197,7 +197,12 @@ def train(config_path: Optional[str] = None) -> None:
     Main training entry point.
     Reads config from config/config.yaml (or custom path).
     """
-    cfg = load_config(config_path)
+    from config_loader import CFG as global_cfg
+    if config_path:
+        cfg = load_config(config_path)
+    else:
+        cfg = global_cfg
+
 
     # ── Device ─────────────────────────────────────────────────────────────────
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -211,16 +216,14 @@ def train(config_path: Optional[str] = None) -> None:
     # ── Data ───────────────────────────────────────────────────────────────────
     print("\n[1/5] Building DataLoaders...")
     train_loader, val_loader, test_loader, class_weights = build_dataloaders(
-        images_dir      = cfg.paths.images_dir,
-        labels_csv      = cfg.paths.labels_csv,
-        train_list_txt  = cfg.paths.train_list,
-        test_list_txt   = cfg.paths.test_list,
         image_size      = cfg.dataset.image_size,
         batch_size      = cfg.training.batch_size,
         num_workers     = cfg.dataset.num_workers,
         pin_memory      = cfg.dataset.pin_memory and device.type == "cuda",
         val_split       = cfg.dataset.val_split,
         train_fraction  = cfg.dataset.train_fraction,
+        train_take_limit= getattr(cfg.dataset, 'train_take_limit', 20000),
+        val_take_limit  = getattr(cfg.dataset, 'val_take_limit', 2000),
     )
 
     # ── Model ──────────────────────────────────────────────────────────────────
@@ -244,7 +247,9 @@ def train(config_path: Optional[str] = None) -> None:
         weight_decay = cfg.training.weight_decay,
     )
 
-    total_steps  = len(train_loader) * cfg.training.num_epochs // cfg.training.gradient_accumulation_steps
+    total_samples_per_epoch = cfg.dataset.train_take_limit if getattr(cfg.dataset, 'train_take_limit', None) else 89696 # BahaaEldin0 train size
+    batches_per_epoch = total_samples_per_epoch // cfg.training.batch_size
+    total_steps  = batches_per_epoch * cfg.training.num_epochs // cfg.training.gradient_accumulation_steps
     warmup_steps = int(total_steps * cfg.training.warmup_ratio)
     scheduler    = get_cosine_schedule_with_warmup(optimizer, warmup_steps, total_steps)
     scaler       = GradScaler(enabled=cfg.training.mixed_precision)

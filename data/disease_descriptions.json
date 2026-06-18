@@ -1,0 +1,16 @@
+{
+  "Atelectasis": "Collapse of a lung or part of a lung, leading to decreased gas exchange.",
+  "Cardiomegaly": "Enlargement of the heart, which can be caused by various cardiovascular conditions.",
+  "Effusion": "Pleural effusion is an abnormal accumulation of fluid in the pleural space between the lungs and the chest wall.",
+  "Infiltration": "Substance denser than air, such as pus, blood, or protein, which lingers within the parenchyma of the lungs.",
+  "Mass": "A localized, space-occupying lesion within the lung, typically >3 cm in diameter, suggestive of a tumor or granuloma.",
+  "Nodule": "A small, distinct radiopaque opacity within the lung, typically <3 cm in diameter.",
+  "Pneumonia": "An infection that inflames the air sacs in one or both lungs, which may fill with fluid or pus.",
+  "Pneumothorax": "The presence of air or gas in the cavity between the lungs and the chest wall, causing collapse of the lung.",
+  "Consolidation": "A region of normally compressible lung tissue that has filled with liquid instead of air.",
+  "Edema": "Pulmonary edema is fluid accumulation in the tissue and air spaces of the lungs, typically due to heart failure.",
+  "Emphysema": "A condition in which the air sacs of the lungs are damaged and enlarged, causing breathlessness.",
+  "Fibrosis": "Pulmonary fibrosis involves scarring and thickening of lung tissue over time.",
+  "Pleural_Thickening": "Thickening of the pleura, the membrane surrounding the lungs, often caused by inflammation or asbestos exposure.",
+  "Hernia": "Hiatal hernia occurs when the upper part of the stomach pushes through the diaphragm into the chest cavity."
+}

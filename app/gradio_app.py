@@ -35,6 +35,8 @@ if sys.platform == "win32":
 import numpy as np
 import torch
 import gradio as gr
+from explainability.gradcam import generate_gradcam_heatmap
+import numpy as np
 import cv2
 import matplotlib
 matplotlib.use("Agg")  # Non-interactive backend for server use
@@ -330,6 +332,8 @@ def analyze_xray(
     head_fusion: str,
     discard_ratio: float,
     threshold: float,
+    explainability_method: str = "Attention Rollout",
+    target_disease: str = "None (Highest Score)",
 ) -> tuple:
     """
     Main inference function called by Gradio.
@@ -346,17 +350,43 @@ def analyze_xray(
         # Preprocess
         clahe_rgb, input_tensor = preprocess_uploaded_image(pil_image)
 
-        # Inference + attention rollout
+        # Inference
+        model_was_training = MODEL.training
+        MODEL.eval()
+
         with torch.no_grad():
-            probs, rollout, overlay = explain_prediction(
+            logits, attentions = MODEL(input_tensor.to(DEVICE), output_attentions=True)
+            probs = torch.sigmoid(logits).squeeze().cpu().numpy()
+
+        target_idx = np.argmax(probs)
+        if target_disease != "None (Highest Score)" and target_disease in DISEASE_LABELS:
+            target_idx = DISEASE_LABELS.index(target_disease)
+
+        if explainability_method == "Attention Rollout":
+            with torch.no_grad():
+                _, rollout, overlay = explain_prediction(
+                    model=MODEL,
+                    image_tensor=input_tensor,
+                    original_image=clahe_rgb,
+                    device=DEVICE,
+                    disease_names=DISEASE_LABELS,
+                    head_fusion=head_fusion,
+                    discard_ratio=discard_ratio,
+                )
+        else: # Grad-CAM
+            MODEL.zero_grad()
+            overlay = generate_gradcam_heatmap(
                 model=MODEL,
-                image_tensor=input_tensor,
-                original_image=clahe_rgb,
-                device=DEVICE,
-                disease_names=DISEASE_LABELS,
-                head_fusion=head_fusion,
-                discard_ratio=discard_ratio,
+                image_tensor=input_tensor.to(DEVICE),
+                target_class=target_idx,
+                original_image=clahe_rgb
             )
+            # Create a dummy rollout to satisfy the function if Grad-CAM
+            rollout = np.zeros((14, 14))
+
+        if model_was_training:
+            MODEL.train()
+
 
         elapsed = time.time() - start_time
 
@@ -426,16 +456,28 @@ def build_interface() -> gr.Blocks:
 
                 gr.Markdown("### ⚙️ Explainability Settings")
                 with gr.Group():
+                    explainability_method = gr.Radio(
+                        choices=["Attention Rollout", "Grad-CAM"],
+                        value="Attention Rollout",
+                        label="Explainability Method",
+                        info="Choose between Transformer-native Attention Rollout or Grad-CAM"
+                    )
+                    target_disease = gr.Dropdown(
+                        choices=["None (Highest Score)"] + DISEASE_LABELS,
+                        value="None (Highest Score)",
+                        label="Target Disease for Grad-CAM",
+                        info="Forces Grad-CAM to explain this specific disease"
+                    )
                     head_fusion = gr.Radio(
                         choices=["mean", "max", "min"],
                         value="mean",
                         label="Attention Head Fusion",
-                        info="How to combine 12 attention heads into one map",
+                        info="[Attention Rollout] How to combine 12 attention heads into one map",
                     )
                     discard_ratio = gr.Slider(
                         minimum=0.0, maximum=0.99, value=0.9, step=0.05,
                         label="Low-Attention Discard Ratio",
-                        info="Zeroes out lowest-attention patches (noise reduction)",
+                        info="[Attention Rollout] Zeroes out lowest-attention patches (noise reduction)",
                     )
                     threshold = gr.Slider(
                         minimum=0.1, maximum=0.9, value=0.5, step=0.05,
@@ -536,7 +578,7 @@ def build_interface() -> gr.Blocks:
         # ── Event Binding ─────────────────────────────────────────────────────
         analyze_btn.click(
             fn=analyze_xray,
-            inputs=[image_input, head_fusion, discard_ratio, threshold],
+            inputs=[image_input, head_fusion, discard_ratio, threshold, explainability_method, target_disease],
             outputs=[heatmap_output, prob_output, diagnosis_output, status_text],
             api_name="analyze",
         )
